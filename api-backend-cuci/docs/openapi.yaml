@@ -1,0 +1,657 @@
+openapi: 3.0.3
+info:
+  title: Laundry Service API
+  version: 1.0.0
+  description: RESTful API for cuci/laundry services (mobil, motor, karpet).
+servers:
+  - url: http://localhost:4000
+    description: Local development
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          nullable: true
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        meta:
+          type: object
+          nullable: true
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: VALIDATION_FAILED
+            message:
+              type: string
+            details:
+              nullable: true
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [user, admin]
+    Service:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        type:
+          type: string
+          enum: [mobil, motor, karpet]
+        price:
+          type: number
+          format: float
+        durationEstimate:
+          type: integer
+    Order:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        serviceType:
+          type: string
+          enum: [mobil, motor, karpet]
+        serviceId:
+          type: integer
+          nullable: true
+        vehicleDetails:
+          type: object
+          additionalProperties: true
+          nullable: true
+        scheduledAt:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: string
+          enum: [pending, queued, in_progress, completed, cancelled]
+        price:
+          type: number
+          format: float
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        service:
+          $ref: '#/components/schemas/Service'
+    QueueItem:
+      type: object
+      properties:
+        orderId:
+          type: integer
+        userName:
+          type: string
+        position:
+          type: integer
+        etaMinutes:
+          type: integer
+        serviceType:
+          type: string
+          enum: [mobil, motor, karpet]
+        status:
+          type: string
+          enum: [pending, queued, in_progress, completed, cancelled]
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+    Pagination:
+      type: object
+      properties:
+        totalItems:
+          type: integer
+        totalPages:
+          type: integer
+        currentPage:
+          type: integer
+        limit:
+          type: integer
+    AdminUser:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [user, admin]
+        createdAt:
+          type: string
+          format: date-time
+        totalOrders:
+          type: integer
+paths:
+  /auth/register:
+    post:
+      summary: Register user
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+                role:
+                  type: string
+                  enum: [user, admin]
+              required: [name, email, password]
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /auth/login:
+    post:
+      summary: Login user
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+              required: [email, password]
+      responses:
+        '200':
+          description: Login success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+  /auth/refresh:
+    post:
+      summary: Refresh access token
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken:
+                  type: string
+              required: [refreshToken]
+      responses:
+        '200':
+          description: Tokens refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+  /auth/logout:
+    post:
+      summary: Logout user (revoke refresh token)
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken:
+                  type: string
+              required: [refreshToken]
+      responses:
+        '200':
+          description: Logout success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+  /orders:
+    post:
+      summary: Buat order baru
+      tags: [Orders]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                serviceType:
+                  type: string
+                  enum: [mobil, motor, karpet]
+                serviceId:
+                  type: integer
+                scheduledAt:
+                  type: string
+                  format: date-time
+                additionalNotes:
+                  type: string
+                description:
+                  type: string
+                vehicleDetails:
+                  type: object
+              required: [serviceType]
+      responses:
+        '201':
+          description: Order created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    get:
+      summary: Daftar order user
+      tags: [Orders]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: status
+          schema:
+            type: string
+        - in: query
+          name: from
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: to
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: List orders
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+  /orders/{id}:
+    get:
+      summary: Detail order user
+      tags: [Orders]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+      responses:
+        '200':
+          description: Order detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+  /queue:
+    get:
+      summary: Lihat antrian
+      tags: [Orders]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: serviceType
+          schema:
+            type: string
+            enum: [mobil, motor, karpet]
+      responses:
+        '200':
+          description: Queue list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/QueueItem'
+  /services:
+    get:
+      summary: List layanan
+      tags: [Services]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum: [mobil, motor, karpet]
+      responses:
+        '200':
+          description: Services
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Service'
+  /queue/me:
+    get:
+      summary: Lihat antrian milik user (posisi dan jumlah di depan)
+      tags: [Orders]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Queue list (own)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        orderId:
+                          type: integer
+                        serviceType:
+                          type: string
+                          enum: [mobil, motor, karpet]
+                        position:
+                          type: integer
+                        aheadCount:
+                          type: integer
+                        status:
+                          type: string
+                          enum: [pending, queued, in_progress, completed, cancelled]
+  /admin/auth/login:
+    post:
+      summary: Login admin
+      tags: [Admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+              required: [email, password]
+      responses:
+        '200':
+          description: Login success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+  /admin/auth/refresh:
+    post:
+      summary: Refresh token admin
+      tags: [Admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken:
+                  type: string
+              required: [refreshToken]
+      responses:
+        '200':
+          description: Tokens refreshed
+  /admin/logout:
+    post:
+      summary: Logout admin
+      tags: [Admin]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken:
+                  type: string
+              required: [refreshToken]
+      responses:
+        '200':
+          description: Logout success
+  /admin/stats/counts:
+    get:
+      summary: Order counts by type
+      tags: [Admin]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Counts
+  /admin/orders:
+    get:
+      summary: List semua order
+      tags: [Admin]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer }
+        - in: query
+          name: limit
+          schema: { type: integer }
+        - in: query
+          name: status
+          schema: { type: string }
+        - in: query
+          name: serviceType
+          schema: { type: string }
+        - in: query
+          name: from
+          schema: { type: string, format: date-time }
+        - in: query
+          name: to
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Paginated orders
+  /admin/orders/{id}:
+    get:
+      summary: Detail order admin
+      tags: [Admin]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Order detail
+  /admin/orders/{id}/update-status:
+    post:
+      summary: Ubah status order
+      tags: [Admin]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [queued, in_progress, completed, cancelled]
+              required: [status]
+      responses:
+        '200':
+          description: Updated order
+  /admin/revenue/month:
+    get:
+      summary: Revenue bulan ini
+      tags: [Admin]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Revenue
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      month:
+                        type: string
+                      totalRevenue:
+                        type: number
+                        format: float
+                      currency:
+                        type: string
+  /admin/users:
+    get:
+      summary: List users (admin)
+      tags: [Admin]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 10 }
+        - in: query
+          name: search
+          schema: { type: string }
+          description: Filter by name/email (contains, case-insensitive)
+      responses:
+        '200':
+          description: Users
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminUser'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+  /admin/queue:
+    get:
+      summary: Antrian admin
+      tags: [Admin]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Queue data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/QueueItem'
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: OK

@@ -1,0 +1,41 @@
+version: '3.9'
+
+services:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: laundry_service
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      DATABASE_URL: mysql://root:root@db:3306/laundry_service
+      JWT_SECRET: devsecret
+      JWT_EXPIRES_IN: 15m
+      REFRESH_TOKEN_SECRET: devrefresh
+      REFRESH_TOKEN_EXPIRES_IN: 7d
+      BCRYPT_SALT_ROUNDS: 10
+      CORS_ORIGINS: http://localhost:3000,http://localhost:5173
+    ports:
+      - "4000:4000"
+    command: sh -c "npx prisma migrate deploy && npm run start"
+    volumes:
+      - ./:/app
+
+volumes:
+  db_data:
